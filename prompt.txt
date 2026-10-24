@@ -1,0 +1,50 @@
+Stwórz w pełni funkcjonalny, prosty w obsłudze i wdrożeniu system do tunelowania portów dla serwerów gier (klon playit.gg) wykorzystujący dynamiczne rekordy DNS SRV w Cloudflare oraz silnik `frp` (Fast Reverse Proxy).
+
+System ma pozwalać użytkownikowi na wpisanie własnej subdomeny, wybranie typu gry (np. Minecraft) i natychmiastowe otrzymanie działającego adresu w postaci czystej subdomeny (np. `supergracz.mojadomena.pl` BEZ wpisywania portu) oraz gotowej komendy/agenta do uruchomienia na własnym komputerze.
+
+---
+
+### 1. ARCHITEKTURA SYSTEMU:
+
+A. Backend & Control Plane (Node.js + Express / TypeScript lub Go):
+   - Zarządza pulą wolnych portów TCP/UDP na VPS (np. zakres 20000–30000).
+   - Zintegrowany z Cloudflare API v4:
+     - Tworzy rekord `A` (z opcją `proxied: false` – szary obłoczek), jeśli jeszcze nie istnieje, wskazujący na IP serwera VPS.
+     - Tworzy rekord `SRV` według wzorca dla gier (np. dla Minecrafta: `_minecraft._tcp.subdomena.twojadomena.pl` wskazujący na odpowiedni port na VPS).
+   - Generuje nową konfigurację dla serwera tunelującego (`frps.toml`) i bezprzerwowo reloaduje lub dodaje połączenie w `frps`.
+   - Zapewnia trwałość danych (prosta baza SQLite lub baza w pliku JSON dla zapisywania aktywnych subdomen i portów).
+
+B. Frontend (Prosty, nowoczesny UI – React/Next.js lub HTML+Tailwind CSS):
+   - Formularz z polami:
+     - Input: Nazwa subdomeny (np. "minecraft-janek")
+     - Select: Rodzaj gry (np. Minecraft TCP 25565, Terraria TCP 7777, Własny port TCP)
+     - Przycisk: "Stwórz Tunel"
+   - Panel z wynikiem:
+     - Adres do gry: `minecraft-janek.twojadomena.pl` (czysta subdomena dzięki rekordom SRV).
+     - Gotowa komenda/skrypt do uruchomienia klienta na Windows/Linux (np. `./frpc tcp --server-addr IP_VPS --server-port 7000 --local-port 25565 --remote-port WYLOSOWANY_PORT`).
+     - Przycisk pobierania paczki z przygotowanym plikiem `frpc.exe` / `frpc` i plikiem `frpc.toml`.
+
+C. Infrastruktura i Konteneryzacja:
+   - Gotowy plik `docker-compose.yml`, który podnosi całe środowisko na VPS (Aplikacja Webowa/API + Serwer `frps`).
+
+---
+
+### 2. WYMAGANA DOKUMENTACJA I INSTRUKCJA WDROŻENIA (W pliku README.md):
+
+Napisz łopatologiczną, bardzo szczegółową instrukcję krok po kroku dla administratora (jak to postawić od zera):
+
+1. **Konfiguracja Cloudflare:**
+   - Jak i gdzie wygenerować token API w Cloudflare (`Zone.DNS:Edit`).
+   - Jakie zmienne środowiskowe wpisać w pliku `.env` (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ZONE_ID`, `DOMAIN_NAME`, `SERVER_IP`).
+2. **Konfiguracja Serwera VPS:**
+   - Jakie porty otworzyć w firewallu VPS-a (np. port `80/443` dla WWW, port `7000` dla agenta `frp`, pula `20000-30000` dla gier).
+   - Instrukcja uruchomienia projektu jednym poleceniem (`docker-compose up -d`).
+3. **Instrukcja dla Użytkownika końcowego:**
+   - Jak użytkownik ma uruchomić pobranego agenta na systemach Windows i Linux bez potrzeby jakiejkolwiek instalacji.
+
+---
+
+### 3. ZASADY KODOWANIA:
+- Kod ma być czysty, stabilny, gotowy do bezpośredniego uruchomienia.
+- Obsłuż błędy (np. próba zajęcia istniejącej subdomeny, brak wolnych portów, błąd po stronie API Cloudflare).
+- Pula portów i domen ma być w pełni konfigurowalna z poziomu plików `.env`.
